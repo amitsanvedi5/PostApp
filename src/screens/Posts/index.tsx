@@ -7,6 +7,8 @@ import {
   FlatList,
   TouchableOpacity,
   ActivityIndicator,
+  RefreshControl,
+  Image,
 } from 'react-native';
 import Toast from 'react-native-toast-message';
 
@@ -17,31 +19,66 @@ import axios from 'axios';
 import {Colors} from '../../utils/theme/color';
 import {text} from '../../utils/commonText';
 import {PostItemInterface} from '../../utils/interface';
+import {IMAGES} from '../../utils/images';
 
 const Posts = () => {
   const navigation = useNavigation();
   const [postData, setPostData] = useState<object[]>([]);
   const [dataLoading, setDataLoading] = useState<boolean>(true);
+  const [refreshing, setRefreshing] = useState<boolean>(false);
 
   const {baseURL} = Constants;
   const {postDetailScreen} = text;
 
   useEffect(() => {
+    navigation.setOptions({
+      headerRight: () => (
+        <TouchableOpacity
+          onPress={() => {
+            setPostData([]);
+            setDataLoading(true);
+            getPostData();
+          }}>
+          <Image source={IMAGES.Refresh} style={{height: 30, width: 30}} />
+        </TouchableOpacity>
+      ),
+    });
+  }, [navigation]);
+
+  useEffect(() => {
     getPostData();
   }, []);
 
-  const getPostData = async () => {
-    try {
-      await axios.get(`${baseURL}posts`).then(async response => {
-        setPostData(response?.data);
+  const getPostData = () => {
+    axios
+      .get(`${baseURL}posts`)
+      .then(response => {
+        if (response && response.status === 200) {
+          setPostData(response?.data);
+        } else {
+          Toast.show({
+            type: 'error',
+            text1: 'Error in fetched data',
+          });
+        }
+      })
+      .catch(function (error) {
+        if (error.response) {
+          Toast.show({
+            type: 'error',
+            text1: `${error.response.status} error`,
+          });
+        } else if (error.request) {
+          console.log('Error ', error.request);
+        } else {
+          console.log('Error', error.message);
+        }
+        console.log(error.config);
+      })
+      .finally(() => {
+        setDataLoading(false);
+        setRefreshing(false);
       });
-    } catch (error) {
-      Toast.show({
-        type: 'error',
-        text1: 'Error in fetched data',
-      });
-    }
-    setDataLoading(false);
   };
 
   const PostItem = ({item}: PostItemInterface) => {
@@ -67,6 +104,15 @@ const Posts = () => {
         data={postData}
         renderItem={({item}) => <PostItem item={item} />}
         style={styles.flatlist}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => {
+              setRefreshing(true);
+              getPostData();
+            }}
+          />
+        }
         ListEmptyComponent={() => {
           return (
             <View style={styles.emptyStyle}>
